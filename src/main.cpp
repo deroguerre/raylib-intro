@@ -1,96 +1,175 @@
 #include "raylib.h"
+#include <chrono>
+#include <cmath>
 
+int level = 0;
+int temps_decompte = 60;
+int duree_allumage_led = 45;
+int chrono_led = duree_allumage_led;
+int number = 3;
+int score = 0;
+int rayon = 60;
+int target_number = 0;
+int nb_leds = 3;
+int total_time = 0;
+int manche = 1;
+
+struct Led {
+    Vector2 position;   // {x, y}
+    int rayon;    // pixels par seconde
+    Color   color;
+    bool on;
+};
+Led table_leds[11];
 // ============================================================
 //  Structures
 //  En C++, on peut regrouper des données liées dans une struct.
 // ============================================================
 
-struct Balle {
-    Vector2 position;   // {x, y}
-    Vector2 vitesse;    // pixels par seconde
-    float   rayon;
-    Color   couleur;
-};
 
 // ============================================================
 //  Fonctions
 //  On sépare la logique en petites fonctions réutilisables.
 // ============================================================
 
-// Met à jour la position et fait rebondir sur les bords
-void mettreAJourBalle(Balle& balle, float deltaTemps)
-{
-    balle.position.x += balle.vitesse.x * deltaTemps;
-    balle.position.y += balle.vitesse.y * deltaTemps;
-
-    int largeur = GetScreenWidth();
-    int hauteur = GetScreenHeight();
-
-    if (balle.position.x - balle.rayon < 0 || balle.position.x + balle.rayon > largeur)
-        balle.vitesse.x *= -1.0f;
-
-    if (balle.position.y - balle.rayon < 0 || balle.position.y + balle.rayon > hauteur)
-        balle.vitesse.y *= -1.0f;
+// Allume la LED
+void allumerLed(Led& led) {
+    led.on = true;
+    led.color = RED;
 }
 
-void dessinerBalle(const Balle& balle)
+void dessinerLed(const Led& led)
 {
-    DrawCircleV(balle.position, balle.rayon, balle.couleur);
+
+    if (led.on) {
+        if (level != 1) {
+            DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % (level - 1) * 5 - (level - 1) * 5 / 2}, rayon, RED);
+        } else {
+            DrawCircleV(led.position, rayon, RED);
+        }
+        
+    } else {
+        if (level != 1) {
+            DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayon, DARKGRAY);
+        } else {
+            DrawCircleV(led.position, rayon, DARKGRAY);
+        }
+    }
+}
+
+void decompte() {
+    temps_decompte --;
+    if (temps_decompte == 0) {
+        number --;
+        temps_decompte = 60;
+    }
+    if (number == 0) {
+        for(int i = 0; i < manche; i++) {
+            level++;
+        }
+        manche++;
+        return;
+    }
+    BeginDrawing();
+        ClearBackground(LIGHTGRAY);
+        DrawText(TextFormat("%d", number), 350, 250, 200, BLACK);
+        DrawText(TextFormat("Level %d", manche), 350, 500, 20, BLACK);
+    EndDrawing();
+}
+
+void game() {
+    BeginDrawing();
+        ClearBackground(LIGHTGRAY);
+        total_time++;
+        for (int i = 0; i < nb_leds; i++) {
+            dessinerLed(table_leds[i]);
+        }
+        chrono_led --;
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
+            Vector2 mousePos = GetMousePosition();
+            for (int i = 0; i < nb_leds; i++) {
+                if (table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayon - level * 5)) {
+                    score++;
+                    table_leds[i].on = false;
+                    chrono_led = 0;
+                } else if (!table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayon - level * 5)) {
+                    score--;
+                }
+            }
+        }
+        if (chrono_led == 0) {
+            for (int i = 0; i < nb_leds; i++) {
+                table_leds[i].on = false;
+            }
+            int x = target_number;
+            while (x == target_number) {
+                target_number = rand() % nb_leds;
+            }
+            table_leds[target_number].on = true;
+            chrono_led = duree_allumage_led;
+
+        }
+
+        DrawText(TextFormat("Score: %d", score), 10, 10, 20, BLACK);
+        if (total_time >= 600) {
+            if (level != 5) {
+                level = 0;
+            } else {
+                level = 6;
+            }
+            total_time = 0;
+            number = 3;
+            duree_allumage_led -= 3;
+            nb_leds += 2;
+            for (int i = 0; i < nb_leds; i++) {
+                table_leds[i].on = false;
+            }
+        }
+    EndDrawing();
 }
 
 // ============================================================
 //  Point d'entrée du programme
 // ============================================================
 
+
 int main()
 {
+    srand(time(nullptr));
     const int LARGEUR  = 800;
     const int HAUTEUR  = 600;
     const int FPS_CIBLE = 60;
 
-    InitWindow(LARGEUR, HAUTEUR, "Intro Raylib - Balle rebondissante");
+    InitWindow(LARGEUR, HAUTEUR, "Catch the light");
     SetTargetFPS(FPS_CIBLE);
 
-    Balle balle = {
-        .position = { LARGEUR / 2.0f, HAUTEUR / 2.0f },
-        .vitesse  = { 300.0f, 220.0f },
-        .rayon    = 20.0f,
-        .couleur  = RED
-    };
+    table_leds[0] = {{400, 300}, rayon, DARKGRAY, false};
+    table_leds[1] = {{620, 300}, rayon, DARKGRAY, false};
+    table_leds[2] = {{180, 300}, rayon, DARKGRAY, false};
+    table_leds[3] = {{332, 91}, rayon, DARKGRAY, false};
+    table_leds[4] = {{468, 509}, rayon, DARKGRAY, false};
+    table_leds[5] = {{222, 171}, rayon, DARKGRAY, false};
+    table_leds[6] = {{578, 429}, rayon, DARKGRAY, false};
+    table_leds[7] = {{222, 429}, rayon, DARKGRAY, false};
+    table_leds[8] = {{578, 171}, rayon, DARKGRAY, false};
+    table_leds[9] = {{332, 509}, rayon, DARKGRAY, false};
+    table_leds[10] = {{468, 91}, rayon, DARKGRAY, false};
 
-    // --------------------------------------------------------
-    //  Boucle principale : tourne jusqu'à ce qu'on ferme la fenêtre
-    // --------------------------------------------------------
     while (!WindowShouldClose())
     {
-        // --- Mise à jour ---
-        float dt = GetFrameTime();   // secondes depuis la dernière frame
-
-        mettreAJourBalle(balle, dt);
-
-        // Clic gauche : téléporte la balle sous le curseur
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT))
-            balle.position = GetMousePosition();
-
-        // Espace : change la couleur aléatoirement
-        if (IsKeyPressed(KEY_SPACE))
-            balle.couleur = { (unsigned char)GetRandomValue(50, 255),
-                              (unsigned char)GetRandomValue(50, 255),
-                              (unsigned char)GetRandomValue(50, 255),
-                              255 };
-
-        // --- Dessin ---
-        BeginDrawing();
-            ClearBackground(DARKGRAY);
-
-            dessinerBalle(balle);
-
-            DrawText("Clic gauche : déplacer la balle", 10, 10, 18, LIGHTGRAY);
-            DrawText("Espace      : changer la couleur", 10, 32, 18, LIGHTGRAY);
-            DrawText("Echap       : quitter",            10, 54, 18, LIGHTGRAY);
-
-            DrawFPS(LARGEUR - 80, 10);
-        EndDrawing();
+        if (level < 6) {
+            if (level == 0) {
+                decompte();
+            } else {
+                game();
+            }
+        } else {
+            BeginDrawing();
+                ClearBackground(LIGHTGRAY);
+                DrawText("Nice try!", 280, 250, 50, BLACK);
+                DrawText(TextFormat("Score: %d", score), 320, 350, 20, BLACK);
+            EndDrawing();
+        }
     }
 
     CloseWindow();
