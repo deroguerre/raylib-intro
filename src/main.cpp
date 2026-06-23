@@ -3,17 +3,18 @@
 #include <cmath>
 
 int level = -1;  // -1 = menu principal, 0 = décompte, 1-5 = jeu, 6 = jeu fin, 7 = arcade, 8 = arcade fin
-int temps_decompte = 60;    // 60 frames à 60 FPS = 1 seconde pour le décompte
-int duree_allumage_led = 45;    // durée d'allumage de la LED en frames (45 frames à 60 FPS = 0.75 seconde initialement)
-int chrono_led = duree_allumage_led;    // chronomètre pour gérer l'allumage des LEDs
+int precedent_level = 0;    // variable pour stocker le niveau précédent avant la pause
+int countdown_time = 60;    // 60 frames à 60 FPS = 1 seconde pour le décompte
+int on_led_lasting = 45;    // durée d'allumage de la LED en frames (45 frames à 60 FPS = 0.75 seconde initialement)
+int led_chrono = on_led_lasting;    // chronomètre pour gérer l'allumage des LEDs
 int number = 3;    // numéro à afficher pour le décompte
 int score = 0;   // score du joueur
-int rayon = 60;    // rayon initial des LEDs
-float rayonAnime = rayon;
+int radius = 60;    // rayon initial des LEDs
+float animated_radius = radius;
 int target_number = 0;  // numéro de la LED qui doit s'allumer
 int nb_leds = 3;    // nombre initial de LEDs (niveau 1)
 int total_time = 0;    // temps total écoulé en frames pour gérer les changements de niveau
-int manche = 1;    // numéro de la manche actuelle
+int round_tournament = 1;    // numéro de la manche actuelle
 int life = 200;
 int timer_bonus = 0;    // chronomètre pour gérer la durée du bonus (LED dorée)
 int timer_malus = 0;    // chronomètre pour gérer la durée du malus (LED noire)
@@ -24,109 +25,129 @@ bool malus = false;    // variable pour gérer l'apparition du malus (LED noire)
 
 struct Led {
     Vector2 position;   // coordonnées de la LED
-    int rayon;    //rayon de la LED
+    int radius;    //radius de la LED
     Color   color;    // couleur de la LED
     bool on;    // état de la LED (allumée ou éteinte)
 };
 
-Led table_leds[11];    // tableau de LEDs, on en utilisera que les 3 premières au début, puis on en ajoutera progressivement jusqu'à 11 au niveau 5
+Led leds_table[11];    // tableau de LEDs
 
-void allumerLed(Led& led) {    // fonction pour allumer une LED
+void turnOnLed(Led& led) {    // fonction pour allumer une LED
     led.on = true;
     led.color = RED;
 }
 
-void dessinerLed(const Led& led)    // fonction pour dessiner une LED
+void drawLed(const Led& led)    // fonction pour dessiner une LED
 {
     if (mode == 0) {    // mode classique
         if (led.on) { 
             
             if (level != 1) {    // à partir du niveau 2 en mode classique, ajouter une position légèrement aléatoire à la LED pour rendre le jeu plus difficile
                 if (bonus) {    // si le bonus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en doré
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayonAnime, GOLD);
+                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, GOLD);
                 } else {
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayonAnime, RED); // dessiner la LED avec une position légèrement aléatoire pour rendre le jeu plus difficile à partir du niveau 2
+                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, RED); // dessiner la LED avec une position légèrement aléatoire pour rendre le jeu plus difficile à partir du niveau 2
                 }
             } else {
-                DrawCircleV(led.position, rayonAnime, RED);
+                DrawCircleV(led.position, animated_radius, RED);
             }
             
         } else {
 
             if (level >= 3) {    // à partir du niveau 3 en mode classique, ajouter une position légèrement aléatoire à la LED pour rendre le jeu plus difficile
                 if (malus) {    // si le malus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en noir
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayonAnime, BLACK);
+                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, BLACK);
                 } else {
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayon, DARKGRAY); 
+                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, radius, DARKGRAY); 
                 }
             } else if (level == 2) {
-                DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, rayon, DARKGRAY); 
+                DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, radius, DARKGRAY); 
             } else {
-                DrawCircleV(led.position, rayon, DARKGRAY);
+                DrawCircleV(led.position, radius, DARKGRAY);
             }
         }
     } else {    // mode arcade
         if (led.on) { 
             if (bonus) {    // si le bonus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en doré
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, rayonAnime, GOLD);
+                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, GOLD);
             } else {
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, rayonAnime, RED);
+                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, RED);
             }
         } else {
             if (malus) {    // si le malus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en noir
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, rayonAnime, BLACK);
+                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, BLACK);
             } else {
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, rayonAnime, DARKGRAY);
+                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, DARKGRAY);
             }
         }
+    }
+}
+
+void reinitialize() {   // fonction pour réinitialiser les paramètres
+    level = -1;
+    countdown_time = 60;
+    on_led_lasting = 45;
+    led_chrono = on_led_lasting;
+    number = 3;
+    score = 0;
+    radius = 60;
+    target_number = 0;
+    nb_leds = 3;
+    total_time = 0;
+    round_tournament = 1;
+    bonus = false;
+    malus = false;
+    life = 200;
+    for (int i = 0; i < 11; i++) {
+        leds_table[i].on = false;
     }
 }
 
 void menu() {   // fonction pour gérer le menu principal
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
-        DrawText("Catch the light", 250, 100, 50, BLACK);
-        DrawText("Press SPACE to start", 250, 300, 20, BLACK);
+        DrawText("Catch the light", 200, 100, 50, BLACK);
+        DrawText("Press SPACE to start", 260, 300, 20, BLACK);
         DrawText("Press A for Arcade Mode", 250, 350, 20, BLACK);
         DrawText("Click on the red LED to score points!", 200, 400, 20, BLACK);
         DrawText("Click on the dark LED to lose points!", 200, 450, 20, BLACK);
         if (IsKeyPressed(KEY_SPACE)) {    // si le joueur appuie sur la touche espace, passer au décompte
             number = 3;
-            temps_decompte = 60;
+            countdown_time = 60;
             level = 0;
         } else if (IsKeyPressed(KEY_Q)) {    // si le joueur appuie sur la touche A (clavier AZERTY), passer au mode arcade
             number = 3;
-            temps_decompte = 60;
+            countdown_time = 60;
             level = 7;
         }
     EndDrawing();
 }
 
-void decompte() {   // fonction pour gérer le décompte avant le début du jeu
-    temps_decompte --;
-    if (temps_decompte == 0) {
+void countdown() {   // fonction pour gérer le décompte avant le début du jeu
+    countdown_time --;
+    if (countdown_time == 0) {
         number --;
-        temps_decompte = 60;
+        countdown_time = 60;
     }
     if (number == 0) {
-        for(int i = 0; i < manche; i++) {
+        for(int i = 0; i < round_tournament; i++) {
             level++;
         }
-        manche++;
+        round_tournament++;
         return;
     }
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         DrawText(TextFormat("%d", number), 350, 250, 200, BLACK);
-        DrawText(TextFormat("Level %d", manche), 350, 500, 20, BLACK);  // affichage du niveau
+        DrawText(TextFormat("Level %d", round_tournament), 350, 500, 20, BLACK);  // affichage du niveau
     EndDrawing();
 }
 
-void decompte_arcade() {   // fonction pour gérer le décompte avant le début du jeu
-    temps_decompte --;
-    if (temps_decompte == 0) {
+void arcadeCountown() {   // fonction pour gérer le décompte avant le début du jeu
+    countdown_time --;
+    if (countdown_time == 0) {
         number --;
-        temps_decompte = 60;
+        countdown_time = 60;
     }
     if (number == 0) {
         level = 8;
@@ -139,13 +160,16 @@ void decompte_arcade() {   // fonction pour gérer le décompte avant le début 
     EndDrawing();
 }
 
-void game() {   // fonction pour gérer le jeu en lui-même
+void game() {   // fonction pour gérer le jeu classique en lui-même
     mode = 0;    // mode classique
+    if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
+        level = 10;
+    }
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         total_time++;
         float progression = total_time / 600.0f;    // calcul de la progression du temps pour faire évoluer le jeu en fonction du temps écoulé
-        rayonAnime = rayon + 2 * sinf(GetTime() * 8.0f);   
+        animated_radius = radius + 2 * sinf(GetTime() * 8.0f);   
 
         if (total_time == 300 && level > 1) {    // après 5 secondes de jeu, faire apparaître le bonus (LED dorée) pour 3 secondes
             bonus = true;
@@ -160,22 +184,22 @@ void game() {   // fonction pour gérer le jeu en lui-même
         }
 
         for (int i = 0; i < nb_leds; i++) {
-            dessinerLed(table_leds[i]);    // dessiner les LEDs en fonction de leur état (allumée ou éteinte)
+            drawLed(leds_table[i]);    // dessiner les LEDs en fonction de leur état (allumée ou éteinte)
         }
-        chrono_led --;  // décrémenter le chronomètre pour gérer l'allumage des LEDs
+        led_chrono --;  // décrémenter le chronomètre pour gérer l'allumage des LEDs
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {  // vérifier si le joueur a cliqué
-            Vector2 mousePos = GetMousePosition();
+            Vector2 mouse_pos = GetMousePosition();
             for (int i = 0; i < nb_leds; i++) {
-                if (table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayonAnime)) {   // vérifier si le clic est sur une LED allumée 
+                if (leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {   // vérifier si le clic est sur une LED allumée 
                     if (bonus && i == target_number) {    // si le bonus est actif et que le joueur a cliqué sur la LED dorée, lui donner un bonus de points
                         score += 5;
                         bonus = false;    // désactiver le bonus après que le joueur l'ait attrapé
                     } else {
                         score++;    // sinon, incrémenter le score normalement
                     }
-                    table_leds[i].on = false;
-                    chrono_led = 0;
-                } else if (!table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayon - level * 5)) {
+                    leds_table[i].on = false;
+                    led_chrono = 0;
+                } else if (!leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, radius - level * 5)) {
                     if (malus) {    // si le malus est actif et que le joueur a cliqué sur la LED noire, lui donner un malus de points
                         score -= 5;
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
@@ -186,16 +210,16 @@ void game() {   // fonction pour gérer le jeu en lui-même
                 }
             }
         }
-        if (chrono_led == 0) {  // si le chronomètre pour l'allumage des LEDs est à 0, allumer une nouvelle LED
+        if (led_chrono == 0) {  // si le chronomètre pour l'allumage des LEDs est à 0, allumer une nouvelle LED
             for (int i = 0; i < nb_leds; i++) {
-                table_leds[i].on = false;   // éteindre toutes les LEDs avant d'en allumer une nouvelle
+                leds_table[i].on = false;   // éteindre toutes les LEDs avant d'en allumer une nouvelle
             }
             int x = target_number;  // stock du numéro de la LED qui doit s'allumer pour éviter de tomber sur la même LED que précédemment
             while (x == target_number) {
                 target_number = rand() % nb_leds;   // choisir une LED aléatoire parmi celles disponibles
             }
-            table_leds[target_number].on = true;
-            chrono_led = duree_allumage_led;    // réinitialiser le chronomètre pour l'allumage des LEDs
+            leds_table[target_number].on = true;
+            led_chrono = on_led_lasting;    // réinitialiser le chronomètre pour l'allumage des LEDs
 
         }
 
@@ -210,17 +234,18 @@ void game() {   // fonction pour gérer le jeu en lui-même
             }
             total_time = 0;
             number = 3;
-            duree_allumage_led -= 3;
+            on_led_lasting -= 3;
             nb_leds += 2;
             for (int i = 0; i < nb_leds; i++) {
-                table_leds[i].on = false;
+                leds_table[i].on = false;
             }
         }
 
     EndDrawing();
 }
 
-void end() {
+
+void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         if (score < 0) {
@@ -246,31 +271,15 @@ void end() {
                     DrawText("Amazing! You are a pro!", 150, 250, 40, BLACK);
                     break;
                 default:
-                    DrawText("Unbelievable... are you sure you are not cheating?", 150, 250, 30, BLACK);
+                    DrawText("Unbelievable... are you sure you are not cheating?", 17, 250, 30, BLACK);
                     break;
             }
         }
-        DrawText(TextFormat("Score: %d", score), 320, 350, 20, BLACK);
-        DrawText("Press ESC to exit", 300, 400, 20, BLACK);
+        DrawText(TextFormat("Score: %d", score), 350, 350, 20, BLACK);
+        DrawText("Press ESC to exit", 310, 400, 20, BLACK);
         DrawText("Press R to restart", 300, 450, 20, BLACK);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
-            level = -1;
-            temps_decompte = 60;
-            duree_allumage_led = 45;
-            chrono_led = duree_allumage_led;
-            number = 3;
-            score = 0;
-            rayon = 60;
-            target_number = 0;
-            nb_leds = 3;
-            total_time = 0;
-            manche = 1;
-            bonus = false;
-            malus = false;
-            life = 200;
-            for (int i = 0; i < 11; i++) {
-                table_leds[i].on = false;
-            }
+            reinitialize();
         }
     EndDrawing();
 }
@@ -278,14 +287,17 @@ void end() {
 void arcade() {   // fonction pour gérer le mode arcade
     mode = 1;    // mode arcade
     nb_leds = 11;    // dans le mode arcade, on utilise toutes les LEDs disponibles
+    if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
+        level = 10;
+    }
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         
         total_time++;
-        rayonAnime = rayon + 2 * sinf(GetTime() * 8.0f); 
+        animated_radius = radius + 2 * sinf(GetTime() * 8.0f); 
         
-        if (duree_allumage_led > 30) {    // faire évoluer la durée d'allumage des LEDs en fonction du temps écoulé pour rendre le jeu plus difficile au fur et à mesure du temps (de 30 frames à 50 frames au début, puis jusqu'à 30 frames à la fin)
-            duree_allumage_led = 30 + (1 - total_time / 1800.0f) * 20;
+        if (on_led_lasting > 25) {    // faire évoluer la durée d'allumage des LEDs en fonction du temps écoulé pour rendre le jeu plus difficile au fur et à mesure du temps (de 30 frames à 50 frames au début, puis jusqu'à 30 frames à la fin)
+            on_led_lasting = 30 + (1 - total_time / 1800.0f) * 20;
         }
         
         if ((total_time + 300) % 600 == 0) {    // après 5 secondes de jeu, faire apparaître le bonus (LED dorée) toutes les 10 secondes de jeu pour 1 seconde (t0 = 3)
@@ -309,22 +321,22 @@ void arcade() {   // fonction pour gérer le mode arcade
         }
 
         for (int i = 0; i < nb_leds; i++) {
-            dessinerLed(table_leds[i]);    // dessiner les LEDs en fonction de leur état (allumée ou éteinte)
+            drawLed(leds_table[i]);    // dessiner les LEDs en fonction de leur état (allumée ou éteinte)
         }
-        chrono_led --;  // décrémenter le chronomètre pour gérer l'allumage des LEDs
+        led_chrono --;  // décrémenter le chronomètre pour gérer l'allumage des LEDs
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {  // vérifier si le joueur a cliqué
-            Vector2 mousePos = GetMousePosition();
+            Vector2 mouse_pos = GetMousePosition();
             for (int i = 0; i < nb_leds; i++) {
-                if (table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayonAnime)) {   // vérifier si le clic est sur une LED allumée 
+                if (leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {   // vérifier si le clic est sur une LED allumée 
                     if (bonus && i == target_number) {    // si le bonus est actif et que le joueur a cliqué sur la LED dorée, lui donner un bonus de points
                         score += 5;
                         bonus = false;    // désactiver le bonus après que le joueur l'ait attrapé
                     } else {
                         score++;    // sinon, incrémenter le score normalement
                     }
-                    table_leds[i].on = false;
-                    chrono_led = 0;
-                } else if (!table_leds[i].on && CheckCollisionPointCircle(mousePos, table_leds[i].position, rayonAnime)) {
+                    leds_table[i].on = false;
+                    led_chrono = 0;
+                } else if (!leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {
                     if (malus) {    // si le malus est actif et que le joueur a cliqué sur la LED noire, lui donner un malus de points
                         score -= 5;
                         life -= 50;    // pénalité de vie si le joueur clique sur une LED noire
@@ -338,21 +350,22 @@ void arcade() {   // fonction pour gérer le mode arcade
             }
         }
 
-        if (chrono_led == 0) {  // si le chronomètre pour l'allumage des LEDs est à 0, allumer une nouvelle LED
+        if (led_chrono == 0) {  // si le chronomètre pour l'allumage des LEDs est à 0, allumer une nouvelle LED
             for (int i = 0; i < nb_leds; i++) {
-                table_leds[i].on = false;   // éteindre toutes les LEDs avant d'en allumer une nouvelle
+                leds_table[i].on = false;   // éteindre toutes les LEDs avant d'en allumer une nouvelle
             }
             int x = target_number;  // stock du numéro de la LED qui doit s'allumer pour éviter de tomber sur la même LED que précédemment
             while (x == target_number) {
                 target_number = rand() % nb_leds;   // choisir une LED aléatoire parmi celles disponibles
             }
-            table_leds[target_number].on = true;
-            chrono_led = duree_allumage_led;    // réinitialiser le chronomètre pour l'allumage des LEDs
+            leds_table[target_number].on = true;
+            led_chrono = on_led_lasting;    // réinitialiser le chronomètre pour l'allumage des LEDs
 
         }
 
         if (life <= 0) {    // si la vie du joueur est à 0, passer à l'écran de fin du mode arcade
             level = 9;
+            total_time = 0;
         }
         DrawText(TextFormat("Score: %d", score), 10, 10, 20, BLACK);    // afficher le score en haut à gauche
         DrawRectangle(10, 40, 200, 20, GRAY);
@@ -369,26 +382,26 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
         DrawText("Press ESC to exit", 300, 400, 20, BLACK);
         DrawText("Press R to restart", 300, 450, 20, BLACK);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
-            level = -1;
-            temps_decompte = 60;
-            duree_allumage_led = 45;
-            chrono_led = duree_allumage_led;
-            number = 3;
-            score = 0;
-            rayon = 60;
-            target_number = 0;
-            nb_leds = 3;
-            total_time = 0;
-            manche = 1;
-            bonus = false;
-            malus = false;
-            life = 200;
-            for (int i = 0; i < 11; i++) {
-                table_leds[i].on = false;
-            }
+            reinitialize();
         }
     EndDrawing();
 }
+
+void pause() {    // fonction pour gérer la pause du jeu
+    BeginDrawing();
+        ClearBackground(LIGHTGRAY);
+        DrawText("Game Paused", 250, 250, 50, BLACK);
+        DrawText("Press P to resume", 270, 350, 20, BLACK);
+        DrawText("Press M for menu", 275, 380, 20, BLACK);
+        if (IsKeyPressed(KEY_SEMICOLON)) {      // retour au menu (semicolon = point-virgule, à la place du M en clavier QWERTY)
+            reinitialize();
+        }
+        if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, reprendre le jeu
+            level = precedent_level;    // revenir au niveau précédent avant la pause
+        }
+    EndDrawing();
+}
+
 // ============================================================
 //  Point d'entrée du programme
 // ============================================================
@@ -404,19 +417,19 @@ int main()
     InitWindow(LARGEUR, HAUTEUR, "Catch the light");
     SetTargetFPS(FPS_CIBLE);    
 
-    // initialisation des LEDs avec leurs positions, leur rayon, leur couleur et leur état (allumée ou éteinte)
+    // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
 
-    table_leds[0] = {{400, 300}, rayon, DARKGRAY, false};
-    table_leds[1] = {{620, 300}, rayon, DARKGRAY, false};
-    table_leds[2] = {{180, 300}, rayon, DARKGRAY, false};
-    table_leds[3] = {{332, 91}, rayon, DARKGRAY, false};
-    table_leds[4] = {{468, 509}, rayon, DARKGRAY, false};
-    table_leds[5] = {{222, 171}, rayon, DARKGRAY, false};
-    table_leds[6] = {{578, 429}, rayon, DARKGRAY, false};
-    table_leds[7] = {{222, 429}, rayon, DARKGRAY, false};
-    table_leds[8] = {{578, 171}, rayon, DARKGRAY, false};
-    table_leds[9] = {{332, 509}, rayon, DARKGRAY, false};
-    table_leds[10] = {{468, 91}, rayon, DARKGRAY, false};
+    leds_table[0] = {{400, 300}, radius, DARKGRAY, false};
+    leds_table[1] = {{620, 300}, radius, DARKGRAY, false};
+    leds_table[2] = {{180, 300}, radius, DARKGRAY, false};
+    leds_table[3] = {{332, 91}, radius, DARKGRAY, false};
+    leds_table[4] = {{468, 509}, radius, DARKGRAY, false};
+    leds_table[5] = {{222, 171}, radius, DARKGRAY, false};
+    leds_table[6] = {{578, 429}, radius, DARKGRAY, false};
+    leds_table[7] = {{222, 429}, radius, DARKGRAY, false};
+    leds_table[8] = {{578, 171}, radius, DARKGRAY, false};
+    leds_table[9] = {{332, 509}, radius, DARKGRAY, false};
+    leds_table[10] = {{468, 91}, radius, DARKGRAY, false};
 
     while (!WindowShouldClose())
     {
@@ -425,21 +438,26 @@ int main()
                 menu();
                 break;
             case 0:
-                decompte();
+                countdown();
                 break;
             case 6:
-                end();
+                gameEnd();
                 break;
             case 7:
-                decompte_arcade();
+                arcadeCountown();
                 break;
             case 8:
+                precedent_level = 7;    
                 arcade();
                 break;
             case 9:
                 endArcade();
                 break;
+            case 10:
+                pause();
+                break;
             default:
+                precedent_level = 0;    
                 game();
                 break;
         }
