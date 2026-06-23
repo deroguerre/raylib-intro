@@ -474,10 +474,6 @@ int main()
     const int FPS_CIBLE = 60;
 
     InitWindow(LARGEUR, HAUTEUR, "Catch the light");
-    InitAudioDevice();
-    TraceLog(LOG_INFO, TextFormat("Audio ready: %i", IsAudioDeviceReady()));
-    Sound intro_sound = LoadSound("assets/intro.wav");
-    TraceLog(LOG_INFO, TextFormat("Sound valid: %i", IsSoundValid(intro_sound)));
     SetTargetFPS(FPS_CIBLE);    
 
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
@@ -496,11 +492,6 @@ int main()
 
     while (!WindowShouldClose())
     {
-
-        if (IsKeyPressed(KEY_SPACE)) {
-            PlaySound(intro_sound);
-        }
-
         switch (level) {    // en fonction du niveau actuel, appeler la fonction correspondante pour gérer l'affichage et la logique du jeu
             case -1:
                 menu();
