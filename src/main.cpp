@@ -1,6 +1,13 @@
 #include "raylib.h"
 #include <chrono>
 #include <cmath>
+#include <fstream>
+#include <algorithm>
+
+
+int classic_best_score = 0;
+int arcade_best_score = 0;
+bool new_best_score = false;
 
 int level = -1;  // -1 = menu principal, 0 = décompte, 1-5 = jeu, 6 = jeu fin, 7 = arcade, 8 = arcade fin
 int precedent_level = 0;    // variable pour stocker le niveau précédent avant la pause
@@ -15,7 +22,7 @@ int target_number = 0;  // numéro de la LED qui doit s'allumer
 int nb_leds = 3;    // nombre initial de LEDs (niveau 1)
 int total_time = 0;    // temps total écoulé en frames pour gérer les changements de niveau
 int round_tournament = 1;    // numéro de la manche actuelle
-int life = 200;
+float life = 200; // vie (mode arcade)
 int timer_bonus = 0;    // chronomètre pour gérer la durée du bonus (LED dorée)
 int timer_malus = 0;    // chronomètre pour gérer la durée du malus (LED noire)
 int mode = 0;    // variable pour stocker le mode de jeu choisi par le joueur (classique ou arcade)
@@ -31,6 +38,38 @@ struct Led {
 };
 
 Led leds_table[11];    // tableau de LEDs
+
+void loadClassicBestScore() {
+    std::ifstream file("classic_best_score.txt");
+    if (file.is_open()) {
+        file >> classic_best_score;
+        file.close(); 
+    }
+}
+
+void saveClassicBestScore() {
+    std::ofstream file("classic_best_score.txt");
+    if (file.is_open()) {
+        file << classic_best_score;
+        file.close();
+    }
+}
+
+void loadArcadeBestScore() {
+    std::ifstream file ("arcade_best_score.txt");
+    if (file.is_open()) {
+        file >> arcade_best_score;
+        file.close(); 
+    }
+}
+
+void saveArcadeBestScore() {
+    std::ofstream file("arcade_best_score.txt");
+    if (file.is_open()) {
+        file << arcade_best_score;
+        file.close();
+    }
+}
 
 void turnOnLed(Led& led) {    // fonction pour allumer une LED
     led.on = true;
@@ -84,6 +123,7 @@ void drawLed(const Led& led)    // fonction pour dessiner une LED
 }
 
 void reinitialize() {   // fonction pour réinitialiser les paramètres
+    new_best_score = false;
     level = -1;
     countdown_time = 60;
     on_led_lasting = 45;
@@ -275,9 +315,15 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
                     break;
             }
         }
+        if (score > classic_best_score) {
+            classic_best_score = score;
+            saveClassicBestScore();
+            DrawText("New best score !", 310, 180, 20, GOLD);
+        }
         DrawText(TextFormat("Score: %d", score), 350, 350, 20, BLACK);
         DrawText("Press ESC to exit", 310, 400, 20, BLACK);
         DrawText("Press R to restart", 300, 450, 20, BLACK);
+        DrawText(TextFormat("Best score : %d", classic_best_score), 330, 500, 20, DARKGRAY);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
             reinitialize();
         }
@@ -285,6 +331,7 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
 }
 
 void arcade() {   // fonction pour gérer le mode arcade
+    
     mode = 1;    // mode arcade
     nb_leds = 11;    // dans le mode arcade, on utilise toutes les LEDs disponibles
     if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
@@ -294,6 +341,7 @@ void arcade() {   // fonction pour gérer le mode arcade
         ClearBackground(LIGHTGRAY);
         
         total_time++;
+        life -= 0.02;
         animated_radius = radius + 2 * sinf(GetTime() * 8.0f); 
         
         if (on_led_lasting > 25) {    // faire évoluer la durée d'allumage des LEDs en fonction du temps écoulé pour rendre le jeu plus difficile au fur et à mesure du temps (de 30 frames à 50 frames au début, puis jusqu'à 30 frames à la fin)
@@ -329,7 +377,7 @@ void arcade() {   // fonction pour gérer le mode arcade
             for (int i = 0; i < nb_leds; i++) {
                 if (leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {   // vérifier si le clic est sur une LED allumée 
                     if (bonus && i == target_number) {    // si le bonus est actif et que le joueur a cliqué sur la LED dorée, lui donner un bonus de points
-                        score += 5;
+                        score += 3;
                         bonus = false;    // désactiver le bonus après que le joueur l'ait attrapé
                     } else {
                         score++;    // sinon, incrémenter le score normalement
@@ -338,11 +386,10 @@ void arcade() {   // fonction pour gérer le mode arcade
                     led_chrono = 0;
                 } else if (!leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {
                     if (malus) {    // si le malus est actif et que le joueur a cliqué sur la LED noire, lui donner un malus de points
-                        score -= 5;
-                        life -= 50;    // pénalité de vie si le joueur clique sur une LED noire
+                        score -= 3;
+                        life -= 40;    // pénalité de vie si le joueur clique sur une LED noire
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
                     } else {
-                        score--;    // pénalité si le joueur clique sur une LED éteinte
                         life -= 10;    // pénalité de vie si le joueur clique sur une LED éteinte
                     }
                     break;  // éviter de pénaliser plusieurs fois pour un même clic
@@ -378,7 +425,16 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         DrawText("You lost!", 200, 250, 50, BLACK);
+        if (score > arcade_best_score) {
+            arcade_best_score = score;
+            new_best_score = true;
+            saveArcadeBestScore();
+        }
+        if (new_best_score) {
+            DrawText("New best score !", 310, 180, 20, GOLD);
+        }
         DrawText(TextFormat("Score: %d", score), 320, 350, 20, BLACK);
+        DrawText(TextFormat("Best score : %d", arcade_best_score), 330, 500, 20, DARKGRAY);
         DrawText("Press ESC to exit", 300, 400, 20, BLACK);
         DrawText("Press R to restart", 300, 450, 20, BLACK);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
@@ -409,12 +465,19 @@ void pause() {    // fonction pour gérer la pause du jeu
 
 int main()
 {
+    loadArcadeBestScore();
+    loadClassicBestScore();
+
     srand(time(nullptr));   // initialiser la graine pour les nombres aléatoires en fonction du temps actuel pour que les positions des LEDs soient différentes à chaque exécution du jeu
     const int LARGEUR  = 800;
     const int HAUTEUR  = 600;
     const int FPS_CIBLE = 60;
 
     InitWindow(LARGEUR, HAUTEUR, "Catch the light");
+    InitAudioDevice();
+    TraceLog(LOG_INFO, TextFormat("Audio ready: %i", IsAudioDeviceReady()));
+    Sound intro_sound = LoadSound("assets/intro.wav");
+    TraceLog(LOG_INFO, TextFormat("Sound valid: %i", IsSoundValid(intro_sound)));
     SetTargetFPS(FPS_CIBLE);    
 
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
@@ -433,6 +496,11 @@ int main()
 
     while (!WindowShouldClose())
     {
+
+        if (IsKeyPressed(KEY_SPACE)) {
+            PlaySound(intro_sound);
+        }
+
         switch (level) {    // en fonction du niveau actuel, appeler la fonction correspondante pour gérer l'affichage et la logique du jeu
             case -1:
                 menu();
