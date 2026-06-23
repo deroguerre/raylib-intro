@@ -4,7 +4,6 @@
 #include <fstream>
 #include <algorithm>
 
-
 int classic_best_score = 0;
 int arcade_best_score = 0;
 bool new_best_score = false;
@@ -29,6 +28,15 @@ int mode = 0;    // variable pour stocker le mode de jeu choisi par le joueur (c
 
 bool bonus = false;    // variable pour gérer l'apparition du bonus (LED dorée) dans le jeu
 bool malus = false;    // variable pour gérer l'apparition du malus (LED noire) dans le jeu
+
+Sound arcade_and_game_lost_sound;
+Sound bonus_touched_sound;
+Sound game_end_sound;
+Sound intro_sound;
+Sound led_touched_sound;
+Sound malus_sound;
+Sound new_best_score_sound;
+Sound whistle_sound;
 
 struct Led {
     Vector2 position;   // coordonnées de la LED
@@ -75,6 +83,7 @@ void turnOnLed(Led& led) {    // fonction pour allumer une LED
     led.on = true;
     led.color = RED;
 }
+
 
 void drawLed(const Led& led)    // fonction pour dessiner une LED
 {
@@ -144,6 +153,8 @@ void reinitialize() {   // fonction pour réinitialiser les paramètres
 }
 
 void menu() {   // fonction pour gérer le menu principal
+    
+    
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         DrawText("Catch the light", 200, 100, 50, BLACK);
@@ -164,6 +175,9 @@ void menu() {   // fonction pour gérer le menu principal
 }
 
 void countdown() {   // fonction pour gérer le décompte avant le début du jeu
+    if (countdown_time == 60) {
+        PlaySound(whistle_sound);
+    }
     countdown_time --;
     if (countdown_time == 0) {
         number --;
@@ -188,6 +202,7 @@ void arcadeCountown() {   // fonction pour gérer le décompte avant le début d
     if (countdown_time == 0) {
         number --;
         countdown_time = 60;
+        PlaySound(whistle_sound);
     }
     if (number == 0) {
         level = 8;
@@ -201,6 +216,7 @@ void arcadeCountown() {   // fonction pour gérer le décompte avant le début d
 }
 
 void game() {   // fonction pour gérer le jeu classique en lui-même
+
     mode = 0;    // mode classique
     if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
         level = 10;
@@ -232,15 +248,18 @@ void game() {   // fonction pour gérer le jeu classique en lui-même
             for (int i = 0; i < nb_leds; i++) {
                 if (leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {   // vérifier si le clic est sur une LED allumée 
                     if (bonus && i == target_number) {    // si le bonus est actif et que le joueur a cliqué sur la LED dorée, lui donner un bonus de points
+                        PlaySound(bonus_touched_sound);
                         score += 5;
                         bonus = false;    // désactiver le bonus après que le joueur l'ait attrapé
                     } else {
+                        PlaySound(led_touched_sound);
                         score++;    // sinon, incrémenter le score normalement
                     }
                     leds_table[i].on = false;
                     led_chrono = 0;
                 } else if (!leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, radius - level * 5)) {
                     if (malus) {    // si le malus est actif et que le joueur a cliqué sur la LED noire, lui donner un malus de points
+                        PlaySound(malus_sound);
                         score -= 5;
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
                     } else {
@@ -289,28 +308,36 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         if (score < 0) {
+            PlaySound(arcade_and_game_lost_sound);
             DrawText("You are probably the worst player ever...", 150, 250, 30, BLACK);
         } else {
             switch (score / 15) {   // afficher un message différent en fonction du score final du joueur
                 case 0:
+                    PlaySound(arcade_and_game_lost_sound);
                     DrawText("You can do better!", 150, 250, 50, BLACK);
                     break;
                 case 1:
+                    PlaySound(arcade_and_game_lost_sound);
                     DrawText("So so...", 150, 250, 50, BLACK);
                     break;
                 case 2:
+                    PlaySound(game_end_sound);
                     DrawText("That's fine, you can do better though!", 150, 250, 30, BLACK);
                     break;
                 case 3:
+                    PlaySound(game_end_sound);
                     DrawText("Not bad!", 150, 250, 50, BLACK);
                     break;
                 case 4:
+                    PlaySound(game_end_sound);
                     DrawText("Great job!", 150, 250, 50, BLACK);
                     break;
                 case 5:
+                    PlaySound(game_end_sound);
                     DrawText("Amazing! You are a pro!", 150, 250, 40, BLACK);
                     break;
                 default:
+                    PlaySound(game_end_sound);
                     DrawText("Unbelievable... are you sure you are not cheating?", 17, 250, 30, BLACK);
                     break;
             }
@@ -318,7 +345,12 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
         if (score > classic_best_score) {
             classic_best_score = score;
             saveClassicBestScore();
+            new_best_score = true;
+            
+        }
+        if (new_best_score) {
             DrawText("New best score !", 310, 180, 20, GOLD);
+            PlaySound(new_best_score_sound);
         }
         DrawText(TextFormat("Score: %d", score), 350, 350, 20, BLACK);
         DrawText("Press ESC to exit", 310, 400, 20, BLACK);
@@ -331,7 +363,6 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
 }
 
 void arcade() {   // fonction pour gérer le mode arcade
-    
     mode = 1;    // mode arcade
     nb_leds = 11;    // dans le mode arcade, on utilise toutes les LEDs disponibles
     if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
@@ -377,15 +408,18 @@ void arcade() {   // fonction pour gérer le mode arcade
             for (int i = 0; i < nb_leds; i++) {
                 if (leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {   // vérifier si le clic est sur une LED allumée 
                     if (bonus && i == target_number) {    // si le bonus est actif et que le joueur a cliqué sur la LED dorée, lui donner un bonus de points
+                        PlaySound(bonus_touched_sound);
                         score += 3;
                         bonus = false;    // désactiver le bonus après que le joueur l'ait attrapé
                     } else {
+                        PlaySound(led_touched_sound);
                         score++;    // sinon, incrémenter le score normalement
                     }
                     leds_table[i].on = false;
                     led_chrono = 0;
                 } else if (!leds_table[i].on && CheckCollisionPointCircle(mouse_pos, leds_table[i].position, animated_radius)) {
                     if (malus) {    // si le malus est actif et que le joueur a cliqué sur la LED noire, lui donner un malus de points
+                        PlaySound(malus_sound);
                         score -= 3;
                         life -= 40;    // pénalité de vie si le joueur clique sur une LED noire
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
@@ -422,6 +456,7 @@ void arcade() {   // fonction pour gérer le mode arcade
 }
 
 void endArcade() {   // fonction pour gérer la fin du mode arcade
+    
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         DrawText("You lost!", 200, 250, 50, BLACK);
@@ -431,7 +466,10 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
             saveArcadeBestScore();
         }
         if (new_best_score) {
+            PlaySound(new_best_score_sound);
             DrawText("New best score !", 310, 180, 20, GOLD);
+        } else {
+            PlaySound(arcade_and_game_lost_sound);
         }
         DrawText(TextFormat("Score: %d", score), 320, 350, 20, BLACK);
         DrawText(TextFormat("Best score : %d", arcade_best_score), 330, 500, 20, DARKGRAY);
@@ -476,6 +514,16 @@ int main()
     InitWindow(LARGEUR, HAUTEUR, "Catch the light");
     SetTargetFPS(FPS_CIBLE);    
 
+    InitAudioDevice();
+    intro_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/intro.mp3");
+    arcade_and_game_lost_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/arcade_and_game_lost.mp3");
+    new_best_score_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/new_best_score.mp3");
+    game_end_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/game_end.mp3");
+    bonus_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/bonus_touched.mp3");
+    led_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/led_touched.mp3");
+    malus_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/malus.mp3");
+    whistle_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/whistle.mp3");
+
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
 
     leds_table[0] = {{400, 300}, radius, DARKGRAY, false};
@@ -494,7 +542,9 @@ int main()
     {
         switch (level) {    // en fonction du niveau actuel, appeler la fonction correspondante pour gérer l'affichage et la logique du jeu
             case -1:
+                
                 menu();
+                PlaySound(intro_sound);
                 break;
             case 0:
                 countdown();
@@ -521,7 +571,17 @@ int main()
                 break;
         }
     }
+    
+    UnloadSound(arcade_and_game_lost_sound);
+    UnloadSound(bonus_touched_sound);
+    UnloadSound(game_end_sound);
+    UnloadSound(intro_sound);
+    UnloadSound(led_touched_sound);
+    UnloadSound(malus_sound);
+    UnloadSound(new_best_score_sound);
+    UnloadSound(whistle_sound);
 
+    CloseAudioDevice();
     CloseWindow();
     return 0;
 }
