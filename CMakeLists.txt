@@ -24,6 +24,13 @@ FetchContent_MakeAvailable(raylib)
 add_executable(${PROJECT_NAME} src/main.cpp)
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
+# Copie les assets dans le dossier de notre exécutable
+add_custom_command(TARGET raylib-intro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets
+    $<TARGET_FILE_DIR:raylib-intro>/assets
+)
+
 # Sur Windows : évite l'ouverture d'une console noire en plus de la fenêtre
 if(WIN32)
     if(MSVC)
