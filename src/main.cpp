@@ -118,13 +118,13 @@ void turnOnLed(Led& led) {    // fonction pour allumer une LED
 
 void introBG() {
     total_time++;
-    if (total_time % 30 == 0) {
+    if ((total_time+12) % 31 == 0) {
         x = rand() % 800;
         y = rand() % 600;
         circle_counter++;
     }    
         
-    DrawCircleV({x, y}, radius, (circle_counter % 5 == 0)? GOLD:RED);
+    DrawCircleV({x, y}, radius, (circle_counter % 4 == 0)? GOLD:RED);
     
 }
 
@@ -199,6 +199,7 @@ void menu() {   // fonction pour gérer le menu principal
         DrawText("Press A for Arcade Mode", 250, 350, 20, BLACK);
         DrawText("Click on the red LED to score points!", 200, 400, 20, BLACK);
         DrawText("Click on the dark LED to lose points!", 205, 450, 20, BLACK);
+        DrawText("MK", 750, 550, 20, BLACK);
         if (IsKeyPressed(KEY_SPACE)) {    // si le joueur appuie sur la touche espace, passer au décompte
             total_time = 0;
             playing = true;
