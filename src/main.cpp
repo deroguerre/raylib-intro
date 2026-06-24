@@ -29,14 +29,20 @@ int mode = 0;    // variable pour stocker le mode de jeu choisi par le joueur (c
 bool bonus = false;    // variable pour gérer l'apparition du bonus (LED dorée) dans le jeu
 bool malus = false;    // variable pour gérer l'apparition du malus (LED noire) dans le jeu
 
+bool can_play_sound = true;
+
 Sound arcade_and_game_lost_sound;
 Sound bonus_touched_sound;
 Sound game_end_sound;
 Sound intro_sound;
 Sound led_touched_sound;
+Sound led_off_touched_sound;
 Sound malus_sound;
 Sound new_best_score_sound;
+Sound pause_sound;
 Sound whistle_sound;
+
+
 
 struct Led {
     Vector2 position;   // coordonnées de la LED
@@ -79,6 +85,13 @@ void saveArcadeBestScore() {
     }
 }
 
+void remadePlaySound(Sound& sound) {
+    if (can_play_sound) {
+        PlaySound(sound);
+        can_play_sound = false;
+    }
+}
+
 void turnOnLed(Led& led) {    // fonction pour allumer une LED
     led.on = true;
     led.color = RED;
@@ -91,11 +104,7 @@ void drawLed(const Led& led)    // fonction pour dessiner une LED
         if (led.on) { 
             
             if (level != 1) {    // à partir du niveau 2 en mode classique, ajouter une position légèrement aléatoire à la LED pour rendre le jeu plus difficile
-                if (bonus) {    // si le bonus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en doré
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, GOLD);
-                } else {
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, RED); // dessiner la LED avec une position légèrement aléatoire pour rendre le jeu plus difficile à partir du niveau 2
-                }
+                DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, bonus? GOLD:RED); // dessiner la LED avec une position légèrement aléatoire pour rendre le jeu plus difficile à partir du niveau 2
             } else {
                 DrawCircleV(led.position, animated_radius, RED);
             }
@@ -103,11 +112,7 @@ void drawLed(const Led& led)    // fonction pour dessiner une LED
         } else {
 
             if (level >= 3) {    // à partir du niveau 3 en mode classique, ajouter une position légèrement aléatoire à la LED pour rendre le jeu plus difficile
-                if (malus) {    // si le malus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en noir
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, BLACK);
-                } else {
-                    DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, radius, DARKGRAY); 
-                }
+                DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, animated_radius, malus? BLACK:DARKGRAY);
             } else if (level == 2) {
                 DrawCircleV({led.position.x + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2, led.position.y + rand() % ((level - 1) * 5) - (level - 1) * 5 / 2}, radius, DARKGRAY); 
             } else {
@@ -116,17 +121,9 @@ void drawLed(const Led& led)    // fonction pour dessiner une LED
         }
     } else {    // mode arcade
         if (led.on) { 
-            if (bonus) {    // si le bonus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en doré
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, GOLD);
-            } else {
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, RED);
-            }
+            DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, bonus? GOLD:RED);
         } else {
-            if (malus) {    // si le malus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en noir
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, BLACK);
-            } else {
-                DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, DARKGRAY);
-            }
+            DrawCircleV({led.position.x + rand() % 16 - 8, led.position.y + rand() % 16 - 8}, animated_radius, malus? BLACK:DARKGRAY);    // si le malus est actif et que la LED à dessiner est celle qui doit s'allumer, la dessiner en noir
         }
     }
 }
@@ -153,9 +150,9 @@ void reinitialize() {   // fonction pour réinitialiser les paramètres
 }
 
 void menu() {   // fonction pour gérer le menu principal
-    
-    
+    remadePlaySound(intro_sound);
     BeginDrawing();
+    
         ClearBackground(LIGHTGRAY);
         DrawText("Catch the light", 200, 100, 50, BLACK);
         DrawText("Press SPACE to start", 260, 300, 20, BLACK);
@@ -184,9 +181,8 @@ void countdown() {   // fonction pour gérer le décompte avant le début du jeu
         countdown_time = 60;
     }
     if (number == 0) {
-        for(int i = 0; i < round_tournament; i++) {
-            level++;
-        }
+        level = round_tournament;
+        number = 3;
         round_tournament++;
         return;
     }
@@ -198,14 +194,17 @@ void countdown() {   // fonction pour gérer le décompte avant le début du jeu
 }
 
 void arcadeCountown() {   // fonction pour gérer le décompte avant le début du jeu
+    if (countdown_time == 60) {
+        PlaySound(whistle_sound);
+    }
     countdown_time --;
     if (countdown_time == 0) {
         number --;
         countdown_time = 60;
-        PlaySound(whistle_sound);
     }
     if (number == 0) {
         level = 8;
+        number = 3;
         return;
     }
     BeginDrawing();
@@ -219,7 +218,9 @@ void game() {   // fonction pour gérer le jeu classique en lui-même
 
     mode = 0;    // mode classique
     if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
+        can_play_sound = true;
         level = 10;
+        round_tournament--;
     }
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
@@ -263,6 +264,7 @@ void game() {   // fonction pour gérer le jeu classique en lui-même
                         score -= 5;
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
                     } else {
+                        PlaySound(led_off_touched_sound);
                         score--;    // pénalité si le joueur clique sur une LED éteinte
                     }
                     break;  // éviter de pénaliser plusieurs fois pour un même clic
@@ -289,6 +291,7 @@ void game() {   // fonction pour gérer le jeu classique en lui-même
             if (level != 5) {
                 level = 0;
             } else {
+                can_play_sound = true;
                 level = 6;
             }
             total_time = 0;
@@ -307,41 +310,7 @@ void game() {   // fonction pour gérer le jeu classique en lui-même
 void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
-        if (score < 0) {
-            PlaySound(arcade_and_game_lost_sound);
-            DrawText("You are probably the worst player ever...", 150, 250, 30, BLACK);
-        } else {
-            switch (score / 15) {   // afficher un message différent en fonction du score final du joueur
-                case 0:
-                    PlaySound(arcade_and_game_lost_sound);
-                    DrawText("You can do better!", 150, 250, 50, BLACK);
-                    break;
-                case 1:
-                    PlaySound(arcade_and_game_lost_sound);
-                    DrawText("So so...", 150, 250, 50, BLACK);
-                    break;
-                case 2:
-                    PlaySound(game_end_sound);
-                    DrawText("That's fine, you can do better though!", 150, 250, 30, BLACK);
-                    break;
-                case 3:
-                    PlaySound(game_end_sound);
-                    DrawText("Not bad!", 150, 250, 50, BLACK);
-                    break;
-                case 4:
-                    PlaySound(game_end_sound);
-                    DrawText("Great job!", 150, 250, 50, BLACK);
-                    break;
-                case 5:
-                    PlaySound(game_end_sound);
-                    DrawText("Amazing! You are a pro!", 150, 250, 40, BLACK);
-                    break;
-                default:
-                    PlaySound(game_end_sound);
-                    DrawText("Unbelievable... are you sure you are not cheating?", 17, 250, 30, BLACK);
-                    break;
-            }
-        }
+
         if (score > classic_best_score) {
             classic_best_score = score;
             saveClassicBestScore();
@@ -349,8 +318,44 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
             
         }
         if (new_best_score) {
-            DrawText("New best score !", 310, 180, 20, GOLD);
-            PlaySound(new_best_score_sound);
+            DrawText("Incredible ! New best score !", 140, 250, 50, GOLD);
+            remadePlaySound(new_best_score_sound);
+        } else {
+            if (score < 0) {
+                remadePlaySound(arcade_and_game_lost_sound);            
+                DrawText("You are probably the worst player ever...", 100, 250, 30, BLACK);
+            } else {
+                switch (score / 20) {   // afficher un message différent en fonction du score final du joueur
+                    case 0:
+                        remadePlaySound(arcade_and_game_lost_sound);
+                        DrawText("You can do better!", 150, 250, 50, BLACK);
+                        break;
+                    case 1:
+                        remadePlaySound(arcade_and_game_lost_sound);
+                        DrawText("So so...", 150, 250, 50, BLACK);
+                        break;
+                    case 2:
+                        remadePlaySound(game_end_sound);
+                        DrawText("That's fine, you can do better though!", 150, 250, 30, BLACK);
+                        break;
+                    case 3:
+                        remadePlaySound(game_end_sound);
+                        DrawText("Not bad!", 150, 250, 50, BLACK);
+                        break;
+                    case 4:
+                        remadePlaySound(game_end_sound);
+                        DrawText("Great job!", 150, 250, 50, BLACK);
+                        break;
+                    case 5:
+                        remadePlaySound(game_end_sound);
+                        DrawText("Amazing! You are a pro!", 150, 250, 40, BLACK);
+                        break;
+                    default:
+                        remadePlaySound(game_end_sound);
+                        DrawText("Unbelievable... are you sure you are not cheating?", 17, 250, 30, BLACK);
+                        break;
+                }
+            }
         }
         DrawText(TextFormat("Score: %d", score), 350, 350, 20, BLACK);
         DrawText("Press ESC to exit", 310, 400, 20, BLACK);
@@ -366,7 +371,9 @@ void arcade() {   // fonction pour gérer le mode arcade
     mode = 1;    // mode arcade
     nb_leds = 11;    // dans le mode arcade, on utilise toutes les LEDs disponibles
     if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, mettre le jeu en pause
+        can_play_sound = true;
         level = 10;
+        round_tournament--;
     }
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
@@ -424,6 +431,7 @@ void arcade() {   // fonction pour gérer le mode arcade
                         life -= 40;    // pénalité de vie si le joueur clique sur une LED noire
                         malus = false;    // désactiver le malus après que le joueur l'ait attrapé
                     } else {
+                        PlaySound(led_off_touched_sound);
                         life -= 10;    // pénalité de vie si le joueur clique sur une LED éteinte
                     }
                     break;  // éviter de pénaliser plusieurs fois pour un même clic
@@ -447,6 +455,7 @@ void arcade() {   // fonction pour gérer le mode arcade
         if (life <= 0) {    // si la vie du joueur est à 0, passer à l'écran de fin du mode arcade
             level = 9;
             total_time = 0;
+            can_play_sound = true;
         }
         DrawText(TextFormat("Score: %d", score), 10, 10, 20, BLACK);    // afficher le score en haut à gauche
         DrawRectangle(10, 40, 200, 20, GRAY);
@@ -466,10 +475,10 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
             saveArcadeBestScore();
         }
         if (new_best_score) {
-            PlaySound(new_best_score_sound);
+            remadePlaySound(new_best_score_sound);
             DrawText("New best score !", 310, 180, 20, GOLD);
         } else {
-            PlaySound(arcade_and_game_lost_sound);
+            remadePlaySound(arcade_and_game_lost_sound);
         }
         DrawText(TextFormat("Score: %d", score), 320, 350, 20, BLACK);
         DrawText(TextFormat("Best score : %d", arcade_best_score), 330, 500, 20, DARKGRAY);
@@ -482,6 +491,7 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
 }
 
 void pause() {    // fonction pour gérer la pause du jeu
+    remadePlaySound(pause_sound);
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
         DrawText("Game Paused", 250, 250, 50, BLACK);
@@ -523,6 +533,8 @@ int main()
     led_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/led_touched.mp3");
     malus_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/malus.mp3");
     whistle_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/whistle.mp3");
+    pause_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/pause.mp3");
+    led_off_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/led_off_touched.mp3");
 
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
 
@@ -542,9 +554,7 @@ int main()
     {
         switch (level) {    // en fonction du niveau actuel, appeler la fonction correspondante pour gérer l'affichage et la logique du jeu
             case -1:
-                
                 menu();
-                PlaySound(intro_sound);
                 break;
             case 0:
                 countdown();
@@ -577,9 +587,12 @@ int main()
     UnloadSound(game_end_sound);
     UnloadSound(intro_sound);
     UnloadSound(led_touched_sound);
+    UnloadSound(led_off_touched_sound);
     UnloadSound(malus_sound);
     UnloadSound(new_best_score_sound);
+    UnloadSound(pause_sound);
     UnloadSound(whistle_sound);
+
 
     CloseAudioDevice();
     CloseWindow();
