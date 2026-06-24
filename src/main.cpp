@@ -525,16 +525,16 @@ int main()
     SetTargetFPS(FPS_CIBLE);    
 
     InitAudioDevice();
-    intro_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/intro.mp3");
-    arcade_and_game_lost_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/arcade_and_game_lost.mp3");
-    new_best_score_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/new_best_score.mp3");
-    game_end_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/game_end.mp3");
-    bonus_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/bonus_touched.mp3");
-    led_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/led_touched.mp3");
-    malus_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/malus.mp3");
-    whistle_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/whistle.mp3");
-    pause_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/pause.mp3");
-    led_off_touched_sound = LoadSound("C:/Users/stagiaire/Desktop/Projet/raylib-intro/assets/led_off_touched.mp3");
+    intro_sound = LoadSound("assets/intro.mp3");
+    arcade_and_game_lost_sound = LoadSound("assets/arcade_and_game_lost.mp3");
+    new_best_score_sound = LoadSound("assets/new_best_score.mp3");
+    game_end_sound = LoadSound("assets/game_end.mp3");
+    bonus_touched_sound = LoadSound("assets/bonus_touched.mp3");
+    led_touched_sound = LoadSound("assets/led_touched.mp3");
+    malus_sound = LoadSound("assets/malus.mp3");
+    whistle_sound = LoadSound("assets/whistle.mp3");
+    pause_sound = LoadSound("assets/pause.mp3");
+    led_off_touched_sound = LoadSound("assets/led_off_touched.mp3");
 
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
 
