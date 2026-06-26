@@ -4,4 +4,3 @@ build/
 .vs/
 *.exe
 *.pdb
-catch_the_light_database.db
