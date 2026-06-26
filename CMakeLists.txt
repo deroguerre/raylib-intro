@@ -21,7 +21,7 @@ set(BUILD_GAMES    OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(raylib)
 
 # Notre exécutable
-add_executable(${PROJECT_NAME} src/main.cpp)
+add_executable(${PROJECT_NAME} src/main.cpp sqlite/sqlite3.c)
 target_link_libraries(${PROJECT_NAME} PRIVATE raylib)
 
 # Copie les assets dans le dossier de notre exécutable
