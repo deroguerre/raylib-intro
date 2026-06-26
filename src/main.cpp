@@ -1,6 +1,6 @@
 // Pour la / les fois pro :
-// - essayer de changer la couleur de foncd lorsqu'il y a clic, bonus, malus...
-// - trouver un moyen d'arrêter la musique quand on entend verre brisé ou malus
+// - essayer de changer la couleur de fond lorsqu'il y a clic, bonus, malus...
+// (- trouver un moyen d'arrêter la musique quand on entend verre brisé ou malus)
 // - réfléchir à des nouveautés/complications plus diverses à partir du niveau 3 (niveau 1 : basique, niveau 2 : bonus + tremblements, niveau 3 : malus, reste ?)
 
 #include "raylib.h"
@@ -23,6 +23,9 @@ int classic_best_score = 0;
 int arcade_best_score = 0;
 bool new_best_score = false;
 
+int global_classic_best_score = 0;
+int global_arcade_best_score = 0;
+bool new_global_best_score = false;
 int level = -2;  // -2 : entrée pseudo, -1 = menu principal, 0 = décompte, 1-5 = jeu, 6 = jeu fin, 7 = arcade, 8 = arcade fin
 int precedent_level = 0;    // variable pour stocker le niveau précédent avant la pause
 int countdown_time = 60;    // 60 frames à 60 FPS = 1 seconde pour le décompte
@@ -55,9 +58,11 @@ float y = 0;
 int circle_counter = 0;
 
 std::string player_pseudo = "";
+int player_exists = 1;
 int player_id = 0;
 
 bool score_saved = false;
+int new_player = 0;
 
 // Déclaration des effets sonores et musiques
 
@@ -73,7 +78,7 @@ Sound pause_sound;
 Sound whistle_sound;
 Sound end_arcade_sound;
 
-
+Music ticking_clock;
 Music intro_music;
 Music bg_music;
 Music arcade_bg_music;
@@ -98,21 +103,7 @@ int callbackBestScore(void* data, int argc, char** argv, char**) {
     return 0;
 }
 
-void loadArcadeBestScore() {    // chargement meilleur score arcade
-    std::ifstream file ("arcade_best_score.txt");
-    if (file.is_open()) {
-        file >> arcade_best_score;
-        file.close(); 
-    }
-}
 
-void saveArcadeBestScore() {    // sauvegarde meilleur score arcade
-    std::ofstream file("arcade_best_score.txt");
-    if (file.is_open()) {
-        file << arcade_best_score;
-        file.close();
-    }
-}
 
 void remadePlaySound(Sound& sound) {    // refonte de la fonction PlaySound() pour empêcher la réitération de son exécution (60 FPS)
     if (can_play_sound) {
@@ -141,7 +132,7 @@ void drawIntroBG() {    // dessine l'arrière-plan de l'écran d'accueil
         circle_counter++;
     }    
         
-    DrawCircleV({x, y}, radius, circle_counter % 4 == 0? (circle_counter % 3 == 0? DARKGRAY:GOLD):(circle_counter % 3== 0? BLACK:RED));
+    DrawCircleV({x, y}, radius, circle_counter % 4 == 0? (circle_counter % 3 == 0? Color {80,80,80,220}:Color {255,203,0,220}):(circle_counter % 3== 0? Color {10,10,10,220}: Color {230,41,55,220}));
     
 }
 
@@ -201,8 +192,15 @@ void reinitialize() {   // fonction pour réinitialiser les paramètres
     for (int i = 0; i < 11; i++) {
         leds_table[i].on = false;
     }
+    new_global_best_score = false;
     StopMusicStream(bg_music);  // arrêtent les musiques en cours de lecture
     StopMusicStream(arcade_bg_music);
+    StopMusicStream(intro_music);
+}
+
+void relaunch() {
+    player_pseudo = "";
+    level = -2;
 }
 
 int callbackGetID(void* data, int argc, char** argv, char**) {
@@ -213,11 +211,20 @@ int callbackGetID(void* data, int argc, char** argv, char**) {
     return 0;   
 }
 
-void pseudo() {
-
-    if (db != SQLITE_OK) {
-        std::cout << sqlite3_errmsg(db) << '\n';
+int callbackNewPlayer(void* data, int argc, char** argv, char**) {
+    int* exists = (int*)data;
+    if (argv[0]) {
+        *exists = std::stoi(argv[0]);
     }
+
+    return 0;
+
+}
+
+void pseudo() {
+    
+    remadePlayMusic(ticking_clock);
+    UpdateMusicStream(ticking_clock);
 
     sqlite3_exec(db, "CREATE TABLE IF NOT EXISTS players (id INTEGER PRIMARY KEY, name TEXT UNIQUE, classic_best_score INTEGER, arcade_best_score INTEGER);", nullptr,nullptr, nullptr);
 
@@ -236,9 +243,14 @@ void pseudo() {
         }
 
         if (IsKeyPressed(KEY_ENTER)) {
-            sqlite3_exec(db, ("INSERT INTO players(name, classic_best_score, arcade_best_score) VALUES ('" + player_pseudo + "', 0, 0);").c_str(), nullptr, nullptr, nullptr);
-            sqlite3_exec(db, ("SELECT id FROM players WHERE name = '" + player_pseudo + "'").c_str(), callbackGetID, &player_id, nullptr);
+            sqlite3_exec(db, ("SELECT COUNT(*) FROM players WHERE name = '" + player_pseudo + "' LIMIT 1;").c_str(), callbackNewPlayer, &player_exists, nullptr);
+            if (player_exists == 0) {
+                sqlite3_exec(db, ("INSERT INTO players(name, classic_best_score, arcade_best_score) VALUES ('" + player_pseudo + "', 0, 0);").c_str(), nullptr, nullptr, nullptr);
+            }
+            sqlite3_exec(db, ("SELECT id FROM players WHERE name = '" + player_pseudo + "';").c_str(), callbackGetID, &player_id, nullptr);
             level = -1;
+            StopMusicStream(ticking_clock);
+            can_play_music = true;
         }
 
         DrawText("Enter your pseudo :", 50, 250, 20, DARKGRAY);
@@ -254,11 +266,17 @@ void menu() {   // fonction pour gérer le menu principal
         ClearBackground(LIGHTGRAY);
         drawIntroBG();
         DrawText("Catch the light", 200, 100, 50, BLACK);
+        DrawText(("Hello, " + player_pseudo + " !").c_str(), 10, 550, 17, BLACK);
         DrawText("Press SPACE to start", 260, 300, 20, BLACK);
         DrawText("Press A for Arcade Mode", 250, 350, 20, BLACK);
         DrawText("Click on the red LED to score points!", 200, 400, 20, BLACK);
         DrawText("Click on the dark LED to lose points!", 205, 450, 20, BLACK);
+        DrawText("Wrong player ? Press R !", 290, 500, 15, BLACK);
         DrawText("MK", 750, 550, 20, BLACK);
+        if (IsKeyPressed(KEY_R)) {
+            reinitialize();
+            relaunch();
+        }
         if (IsKeyPressed(KEY_SPACE)) {    // si le joueur appuie sur la touche espace, passer au décompte du mode classique
             total_time = 0;
             playing = true;
@@ -433,19 +451,24 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
                 + player_pseudo + "', "
                 + std::to_string(score) + ");";
             sqlite3_exec(db, add_classic_score_command.c_str(), callbackGetID, &player_id, nullptr);
-            sqlite3_exec(db, ("UPDATE players SET classic_best_score = (SELECT MAX(score) FROM classic WHERE player_id = " + std::to_string(player_id) + ") WHERE id = " + std::to_string(player_id) + ";").c_str(), nullptr, nullptr, nullptr);
+            sqlite3_exec(db, "SELECT MAX(classic_best_score) FROM players;", callbackBestScore, &global_classic_best_score, nullptr);
+            sqlite3_exec(db, ("UPDATE players SET classic_best_score = (SELECT MAX(score) FROM classic WHERE player_id = " + std::to_string(player_id) + ") WHERE id = " + std::to_string(player_id) + ";").c_str(), callbackBestScore, &classic_best_score, nullptr);
             score_saved = true;
         }
 
-        if (score > classic_best_score) {   // sauvegarde du meilleur score si le précédent vient d'être battu
+        if (score > global_classic_best_score) {
+            global_classic_best_score = score;
+            new_global_best_score = true;
+        } else if (score > classic_best_score) {   // sauvegarde du meilleur score si le précédent vient d'être battu
             classic_best_score = score;
             new_best_score = true;
-            
         }
 
         // Affichage d'un message personnalisé en fonction du score obtenu
-
-        if (new_best_score) {
+        if (new_global_best_score) {
+            remadePlaySound(new_best_score_sound);
+            DrawText("THE BEST SCORE EVER !!", 135, 250, 40, GOLD);                
+        } else if (new_best_score) {
             DrawText("Incredible ! New best score !", 100, 250, 40, GOLD);
             remadePlaySound(new_best_score_sound);
         } else {
@@ -488,10 +511,11 @@ void gameEnd() {    // fonction pour gérer l'écran de fin du jeu classique
 
         // Affichage des commandes possibles et des scores
 
-        DrawText(TextFormat("Score: %d", score), 345, 350, 20, BLACK);
+        DrawText(TextFormat("Score: %d", score), 340, 350, 20, BLACK);
+        DrawText(TextFormat("Personal best score : %d", classic_best_score), 270, 500, 20, DARKGRAY);
+        DrawText(TextFormat("Best score ever : %d", global_classic_best_score), 290, 550, 20, DARKGRAY);
         DrawText("Press ESC to exit", 300, 400, 20, BLACK);
         DrawText("Press R to restart", 296, 450, 20, BLACK);
-        DrawText(TextFormat("Best score : %d", classic_best_score), 320, 500, 20, DARKGRAY);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
             reinitialize();
         }
@@ -615,7 +639,7 @@ void arcade() {   // fonction pour gérer le mode arcade
     EndDrawing();
 }
 
-void endArcade() {   // fonction pour gérer la fin du mode arcade
+void arcadeEnd() {   // fonction pour gérer la fin du mode arcade
     StopMusicStream(arcade_bg_music);
     
     BeginDrawing();
@@ -627,16 +651,23 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
                 + std::to_string(player_id) + ", '"
                 + player_pseudo + "', "
                 + std::to_string(score) + ");";
-            sqlite3_exec(db, add_arcade_score_command.c_str(), callbackGetID, &player_id, nullptr);
+            sqlite3_exec(db, add_arcade_score_command.c_str(), nullptr, nullptr, nullptr);
+            sqlite3_exec(db, "SELECT MAX(arcade_best_score) FROM players;",callbackBestScore, &global_arcade_best_score, nullptr);
             sqlite3_exec(db, ("UPDATE players SET arcade_best_score = (SELECT MAX(score) FROM arcade WHERE player_id = " + std::to_string(player_id) + ") WHERE id = " + std::to_string(player_id) + ";").c_str(), nullptr, nullptr, nullptr);
             score_saved = true;
         }
-
-        if (score > arcade_best_score) {    // sauvegarde meilleur score si précédent battu
+        if (score > global_arcade_best_score) {
+            global_arcade_best_score = score;
+            new_global_best_score = true;
+        } else if (score > arcade_best_score) {    // sauvegarde meilleur score si précédent battu
             arcade_best_score = score;
             new_best_score = true;
         }
-        if (new_best_score) {   // affichage msg perso
+
+        if (new_global_best_score) {
+            remadePlaySound(new_best_score_sound);
+            DrawText("THE BEST SCORE EVER !!", 135, 250, 40, GOLD);       
+        } else if (new_best_score) {   // affichage msg perso
             remadePlaySound(new_best_score_sound);
             DrawText("Incredible ! New best score !", 100, 250, 40, GOLD);
         } else {
@@ -645,7 +676,8 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
         }
         // Affichage commandes possibles et scores
         DrawText(TextFormat("Score: %d", score), 340, 350, 20, BLACK);
-        DrawText(TextFormat("Best score : %d", arcade_best_score), 310, 500, 20, DARKGRAY);
+        DrawText(TextFormat("Personal best score : %d", arcade_best_score), 270, 500, 20, DARKGRAY);
+        DrawText(TextFormat("Best score ever : %d", global_arcade_best_score), 290, 550, 20, DARKGRAY);
         DrawText("Press ESC to exit", 300, 400, 20, BLACK);
         DrawText("Press R to restart", 296, 450, 20, BLACK);
         if (IsKeyPressed(KEY_R)) {    // si le joueur appuie sur la touche R, réinitialiser le jeu pour recommencer une nouvelle partie
@@ -656,6 +688,7 @@ void endArcade() {   // fonction pour gérer la fin du mode arcade
 
 void pause() {    // fonction pour gérer la pause du jeu
     remadePlaySound(pause_sound);
+    PauseMusicStream(arcade_bg_music);
     PauseMusicStream(bg_music);
     BeginDrawing();
         ClearBackground(LIGHTGRAY);
@@ -668,6 +701,7 @@ void pause() {    // fonction pour gérer la pause du jeu
         if (IsKeyPressed(KEY_P)) {    // si le joueur appuie sur la touche P, reprendre le jeu
             level = precedent_level;    // revenir au niveau précédent avant la pause
             ResumeMusicStream(bg_music);
+            ResumeMusicStream(arcade_bg_music);
         }
     EndDrawing();
 }
@@ -679,8 +713,12 @@ void pause() {    // fonction pour gérer la pause du jeu
 
 int main()
 {
-    sqlite3_open("catch_the_light_database.db", &db);
+    if (sqlite3_open("catch_the_light_database.db", &db) != SQLITE_OK) {
+        std::cout << sqlite3_errmsg(db) << '\n';
+    }
+
     sqlite3_exec(db, "PRAGMA foreign_keys = ON;", nullptr, nullptr, nullptr);
+
     
     
     srand(time(nullptr));   // initialiser la graine pour les namebres aléatoires en fonction du temps actuel pour que les positions des LEDs soient différentes à chaque exécution du jeu
@@ -709,8 +747,9 @@ int main()
     arcade_bg_music = LoadMusicStream("assets/arcade_bg_music.mp3");
     end_arcade_sound = LoadSound("assets/end_arcade.mp3");
     game_lost_sound = LoadSound("assets/game_lost.mp3");
+    ticking_clock = LoadMusicStream("assets/ticking_clock.mp3");
 
-    SetMusicVolume(bg_music, 0.33);
+    SetMusicVolume(bg_music, 0.4);
 
     // initialisation des LEDs avec leurs positions, leur radius, leur couleur et leur état (allumée ou éteinte)
 
@@ -749,7 +788,7 @@ int main()
                 arcade();
                 break;
             case 9:
-                endArcade();
+                arcadeEnd();
                 break;
             case 10:
                 pause();
@@ -777,6 +816,7 @@ int main()
     UnloadMusicStream(intro_music);
     UnloadMusicStream(bg_music);
     UnloadMusicStream(arcade_bg_music);
+    UnloadMusicStream(ticking_clock);
 
     CloseAudioDevice();
     CloseWindow();
